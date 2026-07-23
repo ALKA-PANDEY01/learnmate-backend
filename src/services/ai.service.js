@@ -2,6 +2,9 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { generateRoadmapPrompt } = require('../prompts/roadmapPrompt');
 const { generateRemedialPrompt } = require('../prompts/remedialPrompt');
 const { generateNudgePrompt } = require('../prompts/nudgePrompt');
+const { generateFlashcardPrompt } = require('../prompts/flashcardPrompt');
+const { generateQuizPrompt } = require('../prompts/quizPrompt');
+const { generateTutorPrompt } = require('../prompts/tutorPrompt');
 
 // Initialize Google Generative AI client
 let genAI = null;
@@ -18,7 +21,33 @@ if (apiKey) {
   console.warn("GEMINI_API_KEY not found in environment variables. Falling back to mock generator.");
 }
 
-// Reusable local roadmap builder in case API is missing or fails
+// Fallback generator for flashcards
+const getLocalFlashcardFallback = (topic) => {
+  return {
+    flashcards: [
+      { question: `What is the core definition of ${topic}?`, answer: `It represents key principles governing ${topic} studies.` },
+      { question: `Can you name a primary practical application of ${topic}?`, answer: `It is widely utilized in configuring scalable ${topic} pipelines.` },
+      { question: `What is a common misconception about ${topic}?`, answer: `Many believe it operates synchronously, but it actually executes asynchronously.` },
+      { question: `How does ${topic} improve developer efficiency?`, answer: `By automating structural boilerplate configurations.` },
+      { question: `Name one key optimization strategy for ${topic}.`, answer: `Implement caching systems and utilize lazy loading modules.` }
+    ]
+  };
+};
+
+// Fallback generator for dynamic quizzes
+const getLocalQuizFallback = (topic) => {
+  return {
+    quiz: [
+      { id: "q-1", type: "MCQ", question: `Which of the following is true regarding ${topic}?`, options: ["It runs synchronously", "It is an industry standard", "It is deprecated", "It only executes on mobile devices"], answer: "It is an industry standard", explanation: `${topic} is widely adopted across industrial platforms.` },
+      { id: "q-2", type: "TF", question: `Is ${topic} typically recommended for beginners?`, options: ["True", "False"], answer: "True", explanation: "Yes, learning this provides a solid foundation." },
+      { id: "q-3", type: "FITB", question: `A critical component of ${topic} is state ____.`, options: [], answer: "management", explanation: "State management coordinates variables across elements." },
+      { id: "q-4", type: "MCQ", question: `What is the primary benefit of testing ${topic}?`, options: ["Reduces build sizes", "Ensures run-time reliability", "Replaces styling modules", "Simplifies package downloads"], answer: "Ensures run-time reliability", explanation: "Unit and integration tests catch runtime exceptions before shipping." },
+      { id: "q-5", type: "TF", question: `Does ${topic} run natively inside all modern browsers?`, options: ["True", "False"], answer: "True", explanation: "Modern browser engines support these standard operations natively." }
+    ]
+  };
+};
+
+// Fallback generator for learning plans
 const generateLocalFallbackPlan = (goal, domain, skillLevel, hoursPerDay, learningStyle) => {
   const weeks = [];
   const subject = goal || 'Software Engineering';
@@ -144,28 +173,17 @@ const generateLearningPlan = async (goalData) => {
     
     const model = genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
-      generationConfig: {
-        responseMimeType: 'application/json'
-      }
+      generationConfig: { responseMimeType: 'application/json' }
     });
 
     const result = await model.generateContent(promptText);
     const response = await result.response;
     const textResult = response.text();
 
-    if (!textResult) {
-      throw new Error("Received empty response string from Gemini API.");
-    }
-
     const parsedJson = JSON.parse(textResult);
-    if (!parsedJson.weeks || !Array.isArray(parsedJson.weeks)) {
-      throw new Error("Invalid roadmap format received from Gemini AI.");
-    }
-
     parsedJson.weeks.forEach(week => {
       if (!week.id) week.id = `w-${week.weekNumber}`;
       if (week.isExpanded === undefined) week.isExpanded = week.weekNumber === 1;
-
       if (week.tasks && Array.isArray(week.tasks)) {
         week.tasks = week.tasks.map(task => ({
           ...task,
@@ -193,24 +211,14 @@ const modifyRoadmapForRemediation = async (currentWeeks, topic, score, currentWe
     
     const model = genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
-      generationConfig: {
-        responseMimeType: 'application/json'
-      }
+      generationConfig: { responseMimeType: 'application/json' }
     });
 
     const result = await model.generateContent(promptText);
     const response = await result.response;
     const textResult = response.text();
 
-    if (!textResult) {
-      throw new Error("Received empty response string from Gemini API during remediation.");
-    }
-
     const parsedJson = JSON.parse(textResult);
-    if (!parsedJson.weeks || !Array.isArray(parsedJson.weeks)) {
-      throw new Error("Invalid format received during remediation.");
-    }
-
     console.log("Syllabus successfully modified for remediation using Google Gemini API.");
     return parsedJson;
   } catch (error) {
@@ -220,10 +228,9 @@ const modifyRoadmapForRemediation = async (currentWeeks, topic, score, currentWe
 };
 
 const generateSmartNudge = async (reason, userContext) => {
-  const { name, goalTitle } = userContext;
+  const { name } = userContext;
 
   if (!genAI) {
-    console.log("No active Gemini API connection. Generating local fallback nudge message...");
     return generateLocalNudgeFallback(reason, name);
   }
 
@@ -232,25 +239,14 @@ const generateSmartNudge = async (reason, userContext) => {
     
     const model = genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
-      generationConfig: {
-        responseMimeType: 'application/json'
-      }
+      generationConfig: { responseMimeType: 'application/json' }
     });
 
     const result = await model.generateContent(promptText);
     const response = await result.response;
     const textResult = response.text();
 
-    if (!textResult) {
-      throw new Error("Received empty response string from Gemini API during nudge generation.");
-    }
-
     const parsedJson = JSON.parse(textResult);
-    if (!parsedJson.title || !parsedJson.message) {
-      throw new Error("Invalid format received during nudge generation.");
-    }
-
-    console.log("Smart nudge successfully generated using Google Gemini API.");
     return parsedJson;
   } catch (error) {
     console.error("Nudge generation Gemini API call failed. Falling back to local nudge template:", error.message);
@@ -258,8 +254,87 @@ const generateSmartNudge = async (reason, userContext) => {
   }
 };
 
+// Generates Flashcards using Gemini AI
+const generateFlashcards = async (topic, domain, skillLevel) => {
+  if (!genAI) {
+    console.log("No Gemini API connection. Generating fallback local flashcard deck.");
+    return getLocalFlashcardFallback(topic);
+  }
+
+  try {
+    const promptText = generateFlashcardPrompt(topic, domain, skillLevel);
+    
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: { responseMimeType: 'application/json' }
+    });
+
+    const result = await model.generateContent(promptText);
+    const response = await result.response;
+    const textResult = response.text();
+
+    const parsedJson = JSON.parse(textResult);
+    return parsedJson;
+  } catch (error) {
+    console.error("Gemini Flashcards generation failed. Using local fallback deck:", error.message);
+    return getLocalFlashcardFallback(topic);
+  }
+};
+
+// Generates dynamic quizzes using Gemini AI
+const generateQuiz = async (topic, domain, skillLevel) => {
+  if (!genAI) {
+    console.log("No Gemini API connection. Generating fallback local quiz.");
+    return getLocalQuizFallback(topic);
+  }
+
+  try {
+    const promptText = generateQuizPrompt(topic, domain, skillLevel);
+    
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: { responseMimeType: 'application/json' }
+    });
+
+    const result = await model.generateContent(promptText);
+    const response = await result.response;
+    const textResult = response.text();
+
+    const parsedJson = JSON.parse(textResult);
+    return parsedJson;
+  } catch (error) {
+    console.error("Gemini Quiz generation failed. Using local fallback quiz:", error.message);
+    return getLocalQuizFallback(topic);
+  }
+};
+
+// Generates context-aware Tutor responses
+const generateTutorResponse = async (userMessage, conversationHistory, context) => {
+  if (!genAI) {
+    return "Tutor offline. The Gemini API key is missing or invalid. Please check your config parameters to activate your study mentor.";
+  }
+
+  try {
+    const promptText = generateTutorPrompt(userMessage, conversationHistory, context);
+    
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash'
+    });
+
+    const result = await model.generateContent(promptText);
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    console.error("Gemini AI Tutor response failed:", error.message);
+    return "I ran into a problem generating an AI response. Let's try rephrasing your question or exploring a different concept!";
+  }
+};
+
 module.exports = {
   generateLearningPlan,
   modifyRoadmapForRemediation,
-  generateSmartNudge
+  generateSmartNudge,
+  generateFlashcards,
+  generateQuiz,
+  generateTutorResponse
 };

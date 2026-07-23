@@ -22,6 +22,11 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const quizRoutes = require('./routes/quizRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const profileRoutes = require('./routes/profileRoutes');
+const flashcardRoutes = require('./routes/flashcardRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const achievementRoutes = require('./routes/achievementRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
+const searchRoutes = require('./routes/searchRoutes');
 
 // Errors Middleware
 const errorHandler = require('./middleware/errorMiddleware');
@@ -84,6 +89,11 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/flashcards', flashcardRoutes);
+app.use('/api/chats', chatRoutes);
+app.use('/api/achievements', achievementRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/search', searchRoutes);
 
 // Fallback Route for undefined paths
 app.use((req, res, next) => {
