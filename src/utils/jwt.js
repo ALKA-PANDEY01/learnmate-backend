@@ -10,8 +10,8 @@ const generateToken = (res, userId) => {
   
   res.cookie('token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // Cookie only transmitted over HTTPS in prod
-    sameSite: 'strict', // CSRF protection
+    secure: true, // Required for SameSite=None
+    sameSite: 'none', // Allow cross-domain session cookies (Vercel to Render)
     maxAge: expiresDays * 24 * 60 * 60 * 1000 // 7 days in milliseconds
   });
 
@@ -19,12 +19,12 @@ const generateToken = (res, userId) => {
 };
 
 const clearToken = (res) => {
-  res.cookie('token', token, {
-  httpOnly: true,
-  secure: true, // Requires HTTPS
-  sameSite: 'none', // Cross-domain cookie sharing
-  maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-});
+  res.cookie('token', '', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    expires: new Date(0) // Expire immediately
+  });
 };
 
 module.exports = {
